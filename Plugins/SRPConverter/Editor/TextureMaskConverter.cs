@@ -126,6 +126,7 @@ namespace SRPConverter
             }
 
             await File.WriteAllBytesAsync(path, mask.EncodeToPNG());
+            AssetDatabase.ImportAsset(path);
             Debug.Log("Mask saved", mask);
         }
 

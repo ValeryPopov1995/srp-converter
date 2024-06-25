@@ -17,6 +17,8 @@ namespace SRPConverter
         private string _sufMask = "_Mask";
         private string _sufMetallic = "_MSM";
         private string _sufOcclusion = "_AO";
+
+        private bool _createMasks = true;
         private ProgressWindow _progress;
 
 
@@ -33,6 +35,7 @@ namespace SRPConverter
             _sufMask = EditorGUILayout.TextField("Mask sufix", _sufMask);
             _sufMetallic = EditorGUILayout.TextField("Metallic sufix", _sufMetallic);
             _sufOcclusion = EditorGUILayout.TextField("Occlusion sufix", _sufOcclusion);
+            _createMasks = EditorGUILayout.Toggle("Create Masks", _createMasks);
 
             var materials = Selection.objects
                 .Where(o => o is Material)
@@ -52,7 +55,7 @@ namespace SRPConverter
             int i = 0;
             foreach (var material in materials)
             {
-                ConvertUrpToHdrpMaterial(material);
+                await ConvertUrpToHdrpMaterial(material);
                 await Task.Yield();
                 i++;
                 _progress.Progress01 = (float)i / materials.Count();
@@ -62,7 +65,7 @@ namespace SRPConverter
             _progress.Done($"Converted {i} materials");
         }
 
-        private void ConvertUrpToHdrpMaterial(Material material)
+        private async Task ConvertUrpToHdrpMaterial(Material material)
         {
             var albedo = (Texture2D)material.GetTexture("_BaseMap");
             var color = material.GetColor("_BaseColor");
@@ -83,6 +86,20 @@ namespace SRPConverter
             Texture2D mask = null;
             if (root is not null)
                 mask = LoadTexture2D(root + _sufMask);
+
+            if (mask is null && _createMasks)
+            {
+                _progress.Log($"Mask for material {material.name} not found, creating...");
+                var converter = new TextureMaskConverter(
+                    texMetallic,
+                    texOcclusion);
+
+                await converter.CreateMask();
+                var path = converter.directoryPath + root + _sufMask + ".png";
+                await converter.SaveAsset(path);
+                mask = LoadTexture2D(root + _sufMask);
+                _progress.Log($"Mask for material {material.name} created: {mask.name}");
+            }
 
             if (mask is null)
                 _progress.LogWarning($"Material {material.name} have no mask");
